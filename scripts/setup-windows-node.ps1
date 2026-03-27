@@ -1,7 +1,7 @@
 # setup-windows-node.ps1 — Install and configure snapclient on a Windows node
 #
 # Usage (run in PowerShell as Administrator):
-#   irm https://raw.githubusercontent.com/<you>/music-server/main/scripts/setup-windows-node.ps1 | iex
+#   irm https://raw.githubusercontent.com/Benjo1313/agentic-spotify-server/main/scripts/setup-windows-node.ps1 | iex
 #   OR after cloning:
 #   .\scripts\setup-windows-node.ps1 -Server 192.168.1.10 -Name "office"
 #

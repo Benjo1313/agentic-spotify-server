@@ -2,7 +2,7 @@
 # setup-macos-node.sh — Install and configure snapclient on a macOS node
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/<you>/music-server/main/scripts/setup-macos-node.sh | bash -s -- --server <server-ip>
+#   curl -fsSL https://raw.githubusercontent.com/Benjo1313/agentic-spotify-server/main/scripts/setup-macos-node.sh | bash -s -- --server <server-ip>
 #   OR after cloning:
 #   bash scripts/setup-macos-node.sh --server 192.168.1.10 --name "bedroom"
 #

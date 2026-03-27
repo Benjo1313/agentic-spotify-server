@@ -9,7 +9,7 @@ A node is any machine that plays audio from the music server. Once connected, it
 ## Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<you>/music-server/main/scripts/setup-linux-node.sh \
+curl -fsSL https://raw.githubusercontent.com/Benjo1313/agentic-spotify-server/main/scripts/setup-linux-node.sh \
   | bash -s -- --server <server-ip> --name "kitchen"
 ```
 
@@ -38,7 +38,7 @@ Then edit `/etc/default/snapclient` and set `--player alsa:device=hw:1,0`.
 Requires [Homebrew](https://brew.sh).
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<you>/music-server/main/scripts/setup-macos-node.sh \
+curl -fsSL https://raw.githubusercontent.com/Benjo1313/agentic-spotify-server/main/scripts/setup-macos-node.sh \
   | bash -s -- --server <server-ip> --name "bedroom"
 ```
 
@@ -67,7 +67,7 @@ launchctl unload ~/Library/LaunchAgents/com.snapcast.snapclient.plist
 Run PowerShell **as Administrator**, then:
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/<you>/music-server/main/scripts/setup-windows-node.ps1))) -Server <server-ip> -Name "office"
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Benjo1313/agentic-spotify-server/main/scripts/setup-windows-node.ps1))) -Server <server-ip> -Name "office"
 ```
 
 Or with the repo cloned:
