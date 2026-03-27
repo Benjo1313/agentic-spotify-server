@@ -27,7 +27,7 @@ Write-Host "Node name: $Name"
 Write-Host ""
 
 # ── 1. Install snapclient via winget ────────────────────────────────────────
-Write-Host "[1/3] Installing snapclient..."
+Write-Host "[1/4] Installing snapclient..."
 
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
     Write-Error "winget is not available. Install the App Installer from the Microsoft Store."
@@ -52,7 +52,7 @@ if (-not $SnapclientPath) {
 Write-Host "    Found: $SnapclientPath"
 
 # ── 2. Create a Windows Task Scheduler task for auto-start ──────────────────
-Write-Host "[2/3] Registering scheduled task..."
+Write-Host "[2/4] Registering scheduled task..."
 
 $TaskName = "SnapcastClient"
 $Action   = New-ScheduledTaskAction -Execute $SnapclientPath `
@@ -70,22 +70,49 @@ Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger `
 Start-ScheduledTask -TaskName $TaskName
 
 # ── 3. Verify ────────────────────────────────────────────────────────────────
-Write-Host "[3/3] Checking connection..."
+Write-Host "[3/4] Checking connection..."
 Start-Sleep -Seconds 2
 
 $Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 $Process = Get-Process -Name "snapclient" -ErrorAction SilentlyContinue
 
-if ($Process) {
-    Write-Host ""
-    Write-Host "✓ snapclient is running and connected to $Server" -ForegroundColor Green
-    Write-Host "  Node name: $Name"
-    Write-Host "  Type 'list rooms' in #spotify-chat to confirm."
-    Write-Host ""
-    Write-Host "  To stop:    Stop-ScheduledTask -TaskName SnapcastClient"
-    Write-Host "  To remove:  Unregister-ScheduledTask -TaskName SnapcastClient"
-} else {
+if (-not $Process) {
     Write-Host ""
     Write-Error "snapclient doesn't appear to be running. Check Task Scheduler for errors."
     exit 1
 }
+
+# ── 4. Install PowerShell convenience functions ───────────────────────────────
+Write-Host "[4/4] Installing music-on / music-off commands..."
+
+$ProfileDir = Split-Path $PROFILE -Parent
+if (-not (Test-Path $ProfileDir)) { New-Item -ItemType Directory -Path $ProfileDir -Force | Out-Null }
+if (-not (Test-Path $PROFILE))    { New-Item -ItemType File -Path $PROFILE -Force | Out-Null }
+
+# Remove any previous music functions we installed
+$ProfileContent = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
+if ($ProfileContent) {
+    $ProfileContent = $ProfileContent -replace '(?s)# snapcast music functions.*?# end snapcast music functions\r?\n?', ''
+    Set-Content $PROFILE -Value $ProfileContent.TrimEnd()
+}
+
+Add-Content $PROFILE @"
+
+# snapcast music functions
+function music-on  { Start-ScheduledTask -TaskName SnapcastClient; Write-Host 'Snapclient started' }
+function music-off { Stop-ScheduledTask -TaskName SnapcastClient;  Write-Host 'Snapclient stopped' }
+# end snapcast music functions
+"@
+
+Write-Host "    Added to PowerShell profile: music-on, music-off"
+
+Write-Host ""
+Write-Host "✓ snapclient is running and connected to $Server" -ForegroundColor Green
+Write-Host "  Node name: $Name"
+Write-Host "  Type 'list rooms' in #spotify-chat to confirm."
+Write-Host ""
+Write-Host "  Quick commands (open a new PowerShell window):"
+Write-Host "    music-off   Stop receiving audio on this PC"
+Write-Host "    music-on    Start receiving audio again"
+Write-Host ""
+Write-Host "  Playback control: use any Spotify client (phone, desktop, web)"

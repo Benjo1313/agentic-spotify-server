@@ -43,7 +43,7 @@ echo "Node name: $NODE_NAME"
 echo ""
 
 # ── 1. Install snapclient via Homebrew ──────────────────────────────────────
-echo "[1/3] Installing snapclient via Homebrew..."
+echo "[1/4] Installing snapclient via Homebrew..."
 if ! command -v brew &>/dev/null; then
     echo "Error: Homebrew is not installed."
     echo "Install it from https://brew.sh, then re-run this script."
@@ -53,7 +53,7 @@ fi
 brew install snapcast
 
 # ── 2. Create a launchd plist for auto-start ────────────────────────────────
-echo "[2/3] Installing launchd service..."
+echo "[2/4] Installing launchd service..."
 
 PLIST_DIR="$HOME/Library/LaunchAgents"
 PLIST_FILE="$PLIST_DIR/com.snapcast.snapclient.plist"
@@ -92,8 +92,39 @@ EOF
 launchctl unload "$PLIST_FILE" 2>/dev/null || true
 launchctl load -w "$PLIST_FILE"
 
-# ── 3. Verify ────────────────────────────────────────────────────────────────
-echo "[3/3] Checking connection..."
+# ── 3. Install shell aliases ──────────────────────────────────────────────────
+echo "[3/4] Installing music-on / music-off shell aliases..."
+
+SHELL_RC=""
+if [[ -f "$HOME/.zshrc" ]]; then
+    SHELL_RC="$HOME/.zshrc"
+elif [[ -f "$HOME/.bashrc" ]]; then
+    SHELL_RC="$HOME/.bashrc"
+elif [[ -f "$HOME/.bash_profile" ]]; then
+    SHELL_RC="$HOME/.bash_profile"
+fi
+
+if [[ -n "$SHELL_RC" ]]; then
+    # Remove any previous music aliases we installed
+    sed -i '' '/# snapcast music aliases/d;/alias music-on=/d;/alias music-off=/d;/alias music-log=/d' "$SHELL_RC" 2>/dev/null || true
+
+    cat >> "$SHELL_RC" <<'ALIASES'
+# snapcast music aliases
+alias music-on='launchctl load ~/Library/LaunchAgents/com.snapcast.snapclient.plist 2>/dev/null && echo "Snapclient started"'
+alias music-off='launchctl unload ~/Library/LaunchAgents/com.snapcast.snapclient.plist 2>/dev/null && echo "Snapclient stopped"'
+alias music-log='tail -f /tmp/snapclient.log'
+ALIASES
+
+    echo "    Added to $SHELL_RC: music-on, music-off, music-log"
+else
+    echo "    Warning: Could not find shell rc file. Add these aliases manually:"
+    echo "      alias music-on='launchctl load ~/Library/LaunchAgents/com.snapcast.snapclient.plist'"
+    echo "      alias music-off='launchctl unload ~/Library/LaunchAgents/com.snapcast.snapclient.plist'"
+    echo "      alias music-log='tail -f /tmp/snapclient.log'"
+fi
+
+# ── 4. Verify ────────────────────────────────────────────────────────────────
+echo "[4/4] Checking connection..."
 sleep 2
 if launchctl list | grep -q "com.snapcast.snapclient"; then
     echo ""
@@ -101,8 +132,12 @@ if launchctl list | grep -q "com.snapcast.snapclient"; then
     echo "  Node name: $NODE_NAME"
     echo "  Type 'list rooms' in #spotify-chat to confirm."
     echo ""
-    echo "  To check logs:  tail -f /tmp/snapclient.log"
-    echo "  To stop:        launchctl unload ~/Library/LaunchAgents/com.snapcast.snapclient.plist"
+    echo "  Quick commands (open a new terminal or run 'source $SHELL_RC'):"
+    echo "    music-off   Stop receiving audio on this Mac"
+    echo "    music-on    Start receiving audio again"
+    echo "    music-log   Tail the snapclient log"
+    echo ""
+    echo "  Playback control: use any Spotify client (phone, desktop, web)"
 else
     echo ""
     echo "✗ snapclient failed to start. Check logs:"
