@@ -63,10 +63,14 @@ async def test_exec_tool_unexpected_exception_caught(caplog, spotify, snapcast):
 
 
 async def test_exec_tool_success_returns_plain_string(spotify, snapcast):
-    """On success, result must NOT start with TOOL_ERROR:."""
-    spotify.skip.return_value = None
+    """On success, result must NOT start with TOOL_ERROR:. With no post-skip state, returns 'Skipped.'"""
+    from unittest.mock import patch
 
-    result = await _exec_tool("skip_track", {}, spotify, snapcast)
+    spotify.skip.return_value = None
+    spotify.get_playback.return_value = None  # no playback → simple fallback
+
+    with patch("asyncio.sleep"):
+        result = await _exec_tool("skip_track", {}, spotify, snapcast)
 
     assert not result.startswith("TOOL_ERROR:")
     assert result == "Skipped."

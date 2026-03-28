@@ -108,7 +108,60 @@ bash scripts/setup-macos-node.sh --server 192.168.0.127 --name "bedroom"
 - **Tool-call loop is capped at 10 rounds** — `run()` uses `for _round in range(10)` instead of `while True`. An uncapped loop caused unbounded memory growth (7+ GB) when the LLM kept returning tool calls without a text reply, eventually triggering the OOM killer.
 - **`get_system_status` uses `play_state` variable, not `status`** — the snapcast status dict is stored in `status`; the playback string (`"playing"` / `"paused"`) is stored separately in `play_state`. Reusing `status` shadowed the dict and caused `TypeError: string indices must be integers` on every call during active playback.
 - **`now_playing` includes play/pause status** — the Spotify `/me/player` response includes an `is_playing` boolean. The `now_playing` and `get_system_status` tool handlers surface this as `playing` or `paused` in their return string so the LLM can correctly report playback state.
+- **`tool_choice="required"` on round 0** — DeepSeek with `tool_choice="auto"` sometimes returns a text reply instead of calling a tool (e.g. responding "Sure, I'll skip!" without actually calling `skip_track`). The agent forces `tool_choice="required"` on the first round to guarantee at least one tool call per user message, then switches to `"auto"` for subsequent rounds.
+- **Action handlers return post-action state** — `skip_track`, `play_track`, and `previous_track` handlers wait 300 ms then call `get_playback()` and include the new track name in the result. This prevents the LLM from hallucinating what came on next.
+
+## Spotify OAuth Scopes
+
+Current scopes (in `bot/spotify_client.py` and `scripts/spotify_auth.py`):
+
+```
+user-modify-playback-state
+user-read-playback-state
+user-read-currently-playing
+user-read-recently-played
+playlist-read-private       ← added for playlist features
+```
+
+**Re-auth required when scopes change:** If you add a new scope, run `python scripts/spotify_auth.py` to get a new refresh token that includes the updated scope. The existing token won't grant the new permissions.
+
+## Agent Tools Reference
+
+| Tool | Description |
+|------|-------------|
+| `search` | Search for tracks/albums/artists/playlists (type param, default: track) |
+| `play_track` | Play a track by URI, or resume playback |
+| `pause_playback` | Pause |
+| `skip_track` | Skip to next track |
+| `previous_track` | Go back to previous track |
+| `now_playing` | Current track with artist, album, progress, play/pause status |
+| `get_queue` | Currently playing + next 10 tracks |
+| `set_shuffle` | Enable/disable shuffle |
+| `set_repeat` | Set repeat mode: off / track / context |
+| `seek` | Seek to position in seconds |
+| `recently_played` | Last 10 played tracks |
+| `list_playlists` | User's playlists |
+| `get_playlist_tracks` | Tracks in a specific playlist |
+| `play_playlist` | Play playlist by ID (optional shuffle) |
+| `play_album` | Play album by URI |
+| `add_to_queue` | Add a track URI to the queue |
+| `list_rooms` | Snapcast rooms with volume/mute/connected status |
+| `set_volume` | Set room volume (0–100) |
+| `mute_room` / `unmute_room` | Mute/unmute a room |
+| `get_system_status` | Spotify + Snapcast overview |
+| `help` | Show example commands |
 
 ## Testing
 
-No test suite yet.
+```bash
+python3 -m pytest tests/ -v
+```
+
+Test files:
+- `tests/test_agent_reliability.py` — tool_choice enforcement, enriched action results
+- `tests/test_agent_playback_tools.py` — Phase 1 playback control tools
+- `tests/test_agent_playlist_tools.py` — Phase 2 playlist/search tools
+- `tests/test_agent_degradation.py` — loop cap, history window, get_system_status bugs
+- `tests/test_exec_tool.py` — error handling and TOOL_ERROR: prefix
+- `tests/test_snapcast_client.py` — Snapcast client volume/mute logic
+- `tests/test_spotify_client.py` — Spotify HTTP client response handling

@@ -16,6 +16,7 @@ SCOPES = " ".join([
     "user-read-playback-state",
     "user-read-currently-playing",
     "user-read-recently-played",
+    "playlist-read-private",
 ])
 
 
@@ -93,14 +94,14 @@ class SpotifyClient:
                 return await resp.json()
             return None
 
-    async def search(self, query: str, limit: int = 10) -> list[dict]:
-        """Search for tracks. Returns list of track objects."""
+    async def search(self, query: str, type: str = "track", limit: int = 10) -> list[dict]:
+        """Search Spotify. Returns list of items for the given type (track/album/artist/playlist)."""
         result = await self._request("GET", "/search", params={
             "q": query,
-            "type": "track",
+            "type": type,
             "limit": limit,
         })
-        return result["tracks"]["items"]
+        return result[f"{type}s"]["items"]
 
     async def get_playback(self) -> dict | None:
         """Get current playback state. Returns None if nothing is playing."""
@@ -136,6 +137,44 @@ class SpotifyClient:
     async def get_queue(self) -> dict:
         """Get the current playback queue."""
         return await self._request("GET", "/me/player/queue")
+
+    async def previous(self, device_id: str | None = None) -> None:
+        """Skip to the previous track."""
+        params = {"device_id": device_id} if device_id else None
+        await self._request("POST", "/me/player/previous", params=params)
+
+    async def set_shuffle(self, state: bool, device_id: str | None = None) -> None:
+        """Enable or disable shuffle mode."""
+        params: dict = {"state": "true" if state else "false"}
+        if device_id:
+            params["device_id"] = device_id
+        await self._request("PUT", "/me/player/shuffle", params=params)
+
+    async def set_repeat(self, state: str, device_id: str | None = None) -> None:
+        """Set repeat mode. state must be 'off', 'track', or 'context'."""
+        params: dict = {"state": state}
+        if device_id:
+            params["device_id"] = device_id
+        await self._request("PUT", "/me/player/repeat", params=params)
+
+    async def seek(self, position_ms: int, device_id: str | None = None) -> None:
+        """Seek to a position in the current track."""
+        params: dict = {"position_ms": position_ms}
+        if device_id:
+            params["device_id"] = device_id
+        await self._request("PUT", "/me/player/seek", params=params)
+
+    async def get_recently_played(self, limit: int = 10) -> dict:
+        """Get recently played tracks."""
+        return await self._request("GET", "/me/player/recently-played", params={"limit": limit})
+
+    async def get_playlists(self, limit: int = 20) -> dict:
+        """Get the current user's playlists."""
+        return await self._request("GET", "/me/playlists", params={"limit": limit})
+
+    async def get_playlist_tracks(self, playlist_id: str, limit: int = 20) -> dict:
+        """Get tracks in a playlist."""
+        return await self._request("GET", f"/playlists/{playlist_id}/tracks", params={"limit": limit})
 
     async def get_devices(self) -> list[dict]:
         """List available Spotify devices."""
