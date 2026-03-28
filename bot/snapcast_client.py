@@ -67,9 +67,12 @@ class SnapcastClient:
             clients.extend(group["clients"])
         return clients
 
-    async def set_volume(self, client_id: str, volume: int, muted: bool = False) -> None:
-        """Set volume (0-100) and mute state for a client."""
+    async def set_volume(self, client_id: str, volume: int, muted: bool | None = None) -> None:
+        """Set volume (0-100) for a client, preserving mute state unless muted is given."""
         volume = max(0, min(100, volume))
+        if muted is None:
+            status = await self.get_status()
+            muted = self._find_client_muted(status, client_id)
         await self._call("Client.SetVolume", {
             "id": client_id,
             "volume": {"percent": volume, "muted": muted},
@@ -121,6 +124,13 @@ class SnapcastClient:
                 if client["id"] == client_id:
                     return client["config"]["volume"]["percent"]
         return 50
+
+    def _find_client_muted(self, status: dict, client_id: str) -> bool:
+        for group in status["server"]["groups"]:
+            for client in group["clients"]:
+                if client["id"] == client_id:
+                    return client["config"]["volume"]["muted"]
+        return False
 
 
 def _normalize(s: str) -> str:

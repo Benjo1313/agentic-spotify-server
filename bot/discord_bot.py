@@ -17,7 +17,7 @@ import discord
 from bot.agent import MusicAgent, load_env
 from bot.snapcast_client import SnapcastClient
 from bot.spotify_client import SpotifyClient
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -120,7 +120,7 @@ async def main():
     env_path = Path(__file__).parent.parent / "config" / ".env"
     env = load_env(str(env_path))
 
-    llm = OpenAI(
+    llm = AsyncOpenAI(
         api_key=env["DEEPSEEK_API_KEY"],
         base_url="https://api.deepseek.com",
     )

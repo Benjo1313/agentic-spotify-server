@@ -89,7 +89,9 @@ class SpotifyClient:
             if not resp.ok:
                 text = await resp.text()
                 raise SpotifyError(f"{method} {path} failed ({resp.status}): {text}")
-            return await resp.json()
+            if "json" in (resp.content_type or ""):
+                return await resp.json()
+            return None
 
     async def search(self, query: str, limit: int = 10) -> list[dict]:
         """Search for tracks. Returns list of track objects."""

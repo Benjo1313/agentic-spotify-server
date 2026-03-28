@@ -15,7 +15,7 @@ import os
 import sys
 from pathlib import Path
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from bot.snapcast_client import SnapcastClient, SnapcastError
 from bot.spotify_client import SpotifyClient, SpotifyError
@@ -171,8 +171,13 @@ Rules:
 - When asked to play something, always search first, then play the best match.
 - Keep responses short and conversational — one or two sentences max.
 - If a tool call fails, explain what went wrong simply.
+- If a tool result starts with TOOL_ERROR:, always tell the user the action failed.
+  Never claim success when a tool returned TOOL_ERROR:.
 - Room names map to Snapcast clients. If a room isn't found, list available rooms.
-- Never mention technical details like URIs, client IDs, or API errors to the user."""
+- Never mention technical details like URIs, client IDs, or API errors to the user.
+- ALWAYS call the appropriate tool to get current state — never answer from conversation
+  history. Playback state (what's playing, paused/playing, volume) changes at any moment.
+  Any question about current playback or room state requires a fresh tool call."""
 
 
 # ---------------------------------------------------------------------------
@@ -219,7 +224,8 @@ async def _exec_tool(name: str, args: dict, spotify: SpotifyClient, snapcast: Sn
             duration_ms = item["duration_ms"]
             progress = f"{progress_ms // 60000}:{(progress_ms % 60000) // 1000:02d}"
             duration = f"{duration_ms // 60000}:{(duration_ms % 60000) // 1000:02d}"
-            return f'{item["name"]} — {artist} | {item["album"]["name"]} | {progress}/{duration}'
+            status = "playing" if state.get("is_playing") else "paused"
+            return f'{item["name"]} — {artist} | {item["album"]["name"]} | {progress}/{duration} | {status}'
 
         elif name == "list_rooms":
             clients = await snapcast.get_clients()
@@ -256,7 +262,8 @@ async def _exec_tool(name: str, args: dict, spotify: SpotifyClient, snapcast: Sn
             lines = []
             if playback and playback.get("item"):
                 item = playback["item"]
-                lines.append(f'Now playing: {item["name"]} — {item["artists"][0]["name"]}')
+                play_state = "playing" if playback.get("is_playing") else "paused"
+                lines.append(f'Spotify ({play_state}): {item["name"]} — {item["artists"][0]["name"]}')
             else:
                 lines.append("Spotify: nothing playing")
 
@@ -283,8 +290,9 @@ async def _exec_tool(name: str, args: dict, spotify: SpotifyClient, snapcast: Sn
         else:
             return f"Unknown tool: {name}"
 
-    except (SpotifyError, SnapcastError) as e:
-        return f"Error: {e}"
+    except Exception as e:
+        log.error("tool %s failed: %s", name, e)
+        return f"TOOL_ERROR: {e}"
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +300,7 @@ async def _exec_tool(name: str, args: dict, spotify: SpotifyClient, snapcast: Sn
 # ---------------------------------------------------------------------------
 
 class MusicAgent:
-    def __init__(self, spotify: SpotifyClient, snapcast: SnapcastClient, llm: OpenAI, model: str):
+    def __init__(self, spotify: SpotifyClient, snapcast: SnapcastClient, llm: AsyncOpenAI, model: str):
         self._spotify = spotify
         self._snapcast = snapcast
         self._llm = llm
@@ -302,10 +310,10 @@ class MusicAgent:
     async def run(self, user_message: str) -> str:
         self._history.append({"role": "user", "content": user_message})
 
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}] + self._history[-20:]
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}] + self._history[-6:]
 
-        while True:
-            response = self._llm.chat.completions.create(
+        for _round in range(10):
+            response = await self._llm.chat.completions.create(
                 model=self._model,
                 messages=messages,
                 tools=TOOLS,
@@ -328,10 +336,11 @@ class MusicAgent:
             else:
                 reply = msg.content or ""
                 self._history.append({"role": "assistant", "content": reply})
-                # Keep history bounded to last 10 exchanges
-                if len(self._history) > 20:
-                    self._history = self._history[-20:]
+                if len(self._history) > 6:
+                    self._history = self._history[-6:]
                 return reply
+
+        return "I wasn't able to complete that after 10 attempts. Please try again."
 
 
 # ---------------------------------------------------------------------------
@@ -363,7 +372,7 @@ async def main():
     env_path = Path(__file__).parent.parent / "config" / ".env"
     env = load_env(str(env_path))
 
-    llm = OpenAI(
+    llm = AsyncOpenAI(
         api_key=env["DEEPSEEK_API_KEY"],
         base_url="https://api.deepseek.com",
     )
